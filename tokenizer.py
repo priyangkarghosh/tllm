@@ -167,7 +167,7 @@ class Tokenizer:
 
         # start training
         print("Starting training...")
-        merge_start = len(self._vocab)
+        merge_start = self.vocab_size
         num_merges = vocab_size - merge_start
         if num_merges <= 0: 
             print("Current vocabulary length exceeds given target")
@@ -209,7 +209,6 @@ class Tokenizer:
 
     def decode(self, data: list[int]) -> str:
         tokens = b"".join(self._vocab[token_id] for token_id in data)
-        print([self._vocab[token_id] for token_id in data])
         return tokens.decode("utf-8", errors="replace")
    
     def encode(self, text: str) -> list[int]:
