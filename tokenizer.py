@@ -15,13 +15,13 @@ class Tokenizer:
         self.vocab = {i: i for i in range(256)}
         self.merges = {}
         
-    def _pair_stats(self, data):
+    def _pair_stats(self, data: list[int]):
         pairs = Counter()
         for i in range(len(data) - 1):
             pairs[(data[i], data[i+1])] += 1
         return pairs
     
-    def _merge(self, data, pair, token_id):
+    def _merge(self, data: list[int], pair: tuple[int, int], token_id: int):
         a, b = pair
         merged = []
 
@@ -50,12 +50,31 @@ class Tokenizer:
             token_id = 256 + i
 
             # store merge info
-            self.vocab[token_id] = token
+            a, b = token
+            self.vocab[token_id] = a + b
             self.merges[token] = token_id
             
             # complete the merge
+            # -> because of python dicts, these are ordered which is what we want
             data = self._merge(data, token, token_id)
             if i % debug_hook == 0: 
                 print(f"Merge {i}: {token} → {token_id}")
         
         print(f'Finished training with a {256 + i} total vocabulary size.')
+
+    def decode(self, data: list[int]):
+        tokens = b"".join(self.vocab[token_id] for token_id in data)
+        return tokens.decode("utf-8", errors="replace")
+    
+    def encode(self, text: str):
+        tokens = list(map(int, text.encode("utf-8")))
+        while True:
+            pairs = list(zip(tokens, tokens[1:]))
+            if not pairs: break
+            
+            token = min(pairs, key=lambda p: self.merges.get(p, float('inf')))
+            if token not in self.merges: break
+            
+            token_id = self.merges[token]
+            tokens = self._merge(tokens, token, token_id)
+        return tokens
