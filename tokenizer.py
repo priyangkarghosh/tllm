@@ -6,13 +6,13 @@ class Tokenizer:
         # load and encode data
         with open(data_path, "r", encoding="utf-8") as f:
             text = f.read()
-        self.data = list(map(int, text.encode("utf-8")))
+        self.data = list(text.encode("utf-8"))
 
         #
         self.vocab_size = max(vocab_size, 256)
         self.num_merges = self.vocab_size - 256
 
-        self.vocab = {i: i for i in range(256)}
+        self.vocab = {i: bytes([i]) for i in range(256)}
         self.merges = {}
         
     def _pair_stats(self, data: list[int]):
@@ -51,14 +51,13 @@ class Tokenizer:
 
             # store merge info
             a, b = token
-            self.vocab[token_id] = a + b
+            self.vocab[token_id] = self.vocab[a] + self.vocab[b]
             self.merges[token] = token_id
             
             # complete the merge
             # -> because of python dicts, these are ordered which is what we want
             data = self._merge(data, token, token_id)
-            if i % debug_hook == 0: 
-                print(f"Merge {i}: {token} → {token_id}")
+            if i % debug_hook == 0: print(f"Merge {i}: {token} → {token_id}")
         
         print(f'Finished training with a {256 + i} total vocabulary size.')
 
@@ -67,7 +66,7 @@ class Tokenizer:
         return tokens.decode("utf-8", errors="replace")
     
     def encode(self, text: str):
-        tokens = list(map(int, text.encode("utf-8")))
+        tokens = list(text.encode("utf-8"))
         while True:
             pairs = list(zip(tokens, tokens[1:]))
             if not pairs: break
