@@ -9,7 +9,12 @@ GPT_REG_SPLIT = re.compile(
 )
 
 class Tokenizer:
-    def __init__(self):
+    def __init__(
+        self, 
+        special_tokens: list[str] = [
+            "<|startoftext|>", "<|pad|>", "<|endoftext|>"
+        ]
+    ) -> None:
         self.vocab = {i: bytes([i]) for i in range(256)}
         self.merges = {}
    
@@ -29,7 +34,12 @@ class Tokenizer:
        
         return pair_stats, pair_positions
    
-    def _merge(self, data: list[int], pair: tuple[int, int], token_id: int):
+    def _merge(
+        self, 
+        data: list[int], 
+        pair: tuple[int, int], 
+        token_id: int
+    ) -> list[int]:
         a, b = pair
         merged = []
         
@@ -52,7 +62,7 @@ class Tokenizer:
         pair_stats: dict, 
         pair_positions: defaultdict, 
         heap: list
-    ):
+    ) -> None:
         next = nodes[node]['next']
         prev = nodes[node]['prev']
         next_next = nodes[next]['next']
@@ -114,7 +124,7 @@ class Tokenizer:
                 current += 1
         return nodes, heads
         
-    def train(self, data_path: str, vocab_size: int, debug_hook: int = 100):
+    def train(self, data_path: str, vocab_size: int, debug_hook: int = 100) -> None:
         # read and encode training data
         print("Reading data...")
         with open(data_path, "r", encoding="utf-8") as f: text = f.read()
@@ -134,7 +144,11 @@ class Tokenizer:
 
         # start training
         print("Starting training...")
-        num_merges = vocab_size - 256
+        num_merges = vocab_size - len(self.vocab)
+        if num_merges <= 0: 
+            print("Current vocabulary length exceeds given target")
+            return
+        
         for merge in range(num_merges):
             # remove stale entries from the heap
             while heap:
@@ -157,8 +171,7 @@ class Tokenizer:
             for i in pair_positions[token]:
                 # verify this token still exists
                 next = nodes[i]['next']
-                if next == -1 or nodes[i]['val'] != a or nodes[next]['val'] != b:
-                    continue
+                if next == -1 or nodes[i]['val'] != a or nodes[next]['val'] != b: continue
                 self._merge_node(nodes, i, token_id, pair_stats, pair_positions, heap)
 
             # zero out merged pair count
@@ -170,11 +183,11 @@ class Tokenizer:
         
         print(f'Finished training with {256 + merge} total vocabulary size.')
     
-    def decode(self, data: list[int]):
+    def decode(self, data: list[int]) -> str:
         tokens = b"".join(self.vocab[token_id] for token_id in data)
         return tokens.decode("utf-8", errors="replace")
    
-    def encode(self, text: str):
+    def encode(self, text: str) -> list[int]:
         # split text into chunks
         chunks = GPT_REG_SPLIT.findall(text)
         
@@ -196,7 +209,7 @@ class Tokenizer:
             tokens.extend(chunk_tokens)
         return tokens
 
-    def save(self, path: str = './tkz.pkl'):
+    def save(self, path: str = './tkz.pkl') -> None:
         with open(path, "wb") as f:
             pickle.dump({
                 "vocab": self.vocab,
@@ -205,7 +218,7 @@ class Tokenizer:
         print(f"Tokenizer saved to {path}")
 
     @classmethod
-    def load(cls, path: str):
+    def load(cls, path: str) -> "Tokenizer":
         with open(path, "rb") as f: data = pickle.load(f)
         
         tok = cls()
