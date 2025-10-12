@@ -1,3 +1,4 @@
+import pickle
 import regex as re
 from collections import Counter
 
@@ -84,3 +85,21 @@ class Tokenizer:
                 chunk_tokens = self._merge(chunk_tokens, token, token_id)
             tokens.extend(chunk_tokens)
         return tokens
+
+    def save(self, path: str = './tkz.pkl'):
+        with open(path, "wb") as f:
+            pickle.dump({
+                "vocab": self.vocab,
+                "merges": self.merges
+            }, f)
+        print(f"Tokenizer saved to {path}")
+
+    @classmethod
+    def load(cls, path: str):
+        with open(path, "rb") as f: data = pickle.load(f)
+        
+        tok = cls()
+        tok.vocab = data["vocab"]
+        tok.merges = data["merges"]
+        print(f"Tokenizer loaded from {path}")
+        return tok
