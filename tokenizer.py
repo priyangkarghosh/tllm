@@ -9,15 +9,28 @@ GPT_REG_SPLIT = re.compile(
 )
 
 class Tokenizer:
-    def __init__(
-        self, 
-        special_tokens: list[str] = [
-            "<|startoftext|>", "<|pad|>", "<|endoftext|>"
-        ]
-    ) -> None:
-        self.vocab = {i: bytes([i]) for i in range(256)}
-        self.merges = {}
-   
+    def __init__(self) -> None:
+        self._vocab = {i: bytes([i]) for i in range(256)}
+        self._merges: dict[int | tuple, int] = {}
+        
+        self._special_tokens: dict[str, int] = {}
+        self._special_token_pattern: re.Pattern = re.compile('()')
+    
+    @property
+    def vocab_size(self):
+        return len(self._vocab)
+    
+    def register_special_tokens(self, tokens: list[str]) -> None:
+        # update vocab with special tokens
+        start = max(self._vocab.keys(), default=-1) + 1
+        for token_id, token_str in enumerate(tokens, start=start):
+            self._vocab[token_id] = token_str.encode("utf-8")
+            self._special_tokens[token_str] = token_id
+        self._update_special_token_pattern()
+    
+    def _update_special_token_pattern(self):
+        self._special_token_pattern = '(' + '|'.join(map(re.escape, self._special_tokens.keys())) + ')'
+        
     def _pair_stats(self, nodes: np.ndarray, chunk_heads: list) -> tuple[Counter, defaultdict[list]]:
         pair_stats = Counter()
         pair_positions = defaultdict(set)
@@ -128,8 +141,18 @@ class Tokenizer:
         # read and encode training data
         print("Reading data...")
         with open(data_path, "r", encoding="utf-8") as f: text = f.read()
-        data = [list(chunk.encode("utf-8")) for chunk in GPT_REG_SPLIT.findall(text)]
         
+        data = []
+        segments = re.split(self._special_token_pattern, text)
+        for segment in segments:
+            if segment in self._special_tokens: 
+                data.append([self._special_tokens[segment]])
+            else: 
+                data.extend([
+                    list(chunk.encode("utf-8")) 
+                    for chunk in GPT_REG_SPLIT.findall(segment)
+                ])
+
         # building training chunks
         print("Building chunks...")
         nodes, chunk_heads = self._build_training_chunks(data)
@@ -144,7 +167,8 @@ class Tokenizer:
 
         # start training
         print("Starting training...")
-        num_merges = vocab_size - len(self.vocab)
+        merge_start = len(self._vocab)
+        num_merges = vocab_size - merge_start
         if num_merges <= 0: 
             print("Current vocabulary length exceeds given target")
             return
@@ -160,12 +184,12 @@ class Tokenizer:
             # find the most common pair globally
             count, token = heappop(heap)
             if count == 0: break  # make sure the count isn't 0
-            token_id = 256 + merge
+            token_id = merge_start + merge
             
             # store merge info
             a, b = token
-            self.vocab[token_id] = self.vocab[a] + self.vocab[b]
-            self.merges[token] = token_id
+            self._vocab[token_id] = self._vocab[a] + self._vocab[b]
+            self._merges[token] = token_id
             
             # apply merge to all chunks
             for i in pair_positions[token]:
@@ -182,17 +206,28 @@ class Tokenizer:
             if merge % debug_hook == 0: print(f"Merge {merge}: {token} → {token_id}")
         
         print(f'Finished training with {256 + merge} total vocabulary size.')
-    
+
     def decode(self, data: list[int]) -> str:
-        tokens = b"".join(self.vocab[token_id] for token_id in data)
+        tokens = b"".join(self._vocab[token_id] for token_id in data)
+        print([self._vocab[token_id] for token_id in data])
         return tokens.decode("utf-8", errors="replace")
    
     def encode(self, text: str) -> list[int]:
         # split text into chunks
-        chunks = GPT_REG_SPLIT.findall(text)
-        
+        chunks = []
+        segments = re.split(self._special_token_pattern, text)
+        for segment in segments:
+            if segment in self._special_tokens: chunks.append(segment)
+            else: chunks.extend(GPT_REG_SPLIT.findall(segment))
+                    
         tokens = []
         for chunk in chunks:
+            # check if this is a special token and handle it as such
+            if chunk in self._special_tokens: 
+                tokens.append(self._special_tokens[chunk])
+                continue
+            
+            # otherwise, treat like a normal token
             chunk_tokens = list(chunk.encode("utf-8"))
             
             # apply merges to this chunk
@@ -201,10 +236,10 @@ class Tokenizer:
                 if not pairs: break
                 
                 # find the pair with the earliest merge
-                token = min(pairs, key=lambda p: self.merges.get(p, float('inf')))
-                if token not in self.merges: break
+                token = min(pairs, key=lambda p: self._merges.get(p, float('inf')))
+                if token not in self._merges: break
                 
-                token_id = self.merges[token]
+                token_id = self._merges[token]
                 chunk_tokens = self._merge(chunk_tokens, token, token_id)
             tokens.extend(chunk_tokens)
         return tokens
@@ -212,8 +247,9 @@ class Tokenizer:
     def save(self, path: str = './tkz.pkl') -> None:
         with open(path, "wb") as f:
             pickle.dump({
-                "vocab": self.vocab,
-                "merges": self.merges
+                "vocab": self._vocab,
+                "merges": self._merges,
+                "special_tokens": self._special_tokens
             }, f)
         print(f"Tokenizer saved to {path}")
 
@@ -222,7 +258,9 @@ class Tokenizer:
         with open(path, "rb") as f: data = pickle.load(f)
         
         tok = cls()
-        tok.vocab = data["vocab"]
-        tok.merges = data["merges"]
+        tok._vocab = data["vocab"]
+        tok._merges = data["merges"]
+        tok._special_tokens = data["special_tokens"]
+        tok._update_special_token_pattern()
         print(f"Tokenizer loaded from {path}")
         return tok
