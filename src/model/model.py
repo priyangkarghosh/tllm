@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
+from model.attention import CasualSelfAttention
 from model.config import GPTConfig
 from model.mlp import MLP
 
