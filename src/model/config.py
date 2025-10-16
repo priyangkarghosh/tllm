@@ -3,8 +3,8 @@ from dataclasses import dataclass
 
 @dataclass
 class GPTConfig:
-    block_size: int = 256
-    vocab_size: int = 512
-    n_layer: int = 6
-    n_head: int = 6
-    n_embd: int = 384
+    block_size: int = 1024 # max sequence length
+    vocab_size: int = 50257 # number of tokens in vocab
+    n_layer: int = 12 # number of layers
+    n_head: int = 12 # number of heads
+    n_embd: int = 768 # embedding dimension

@@ -31,3 +31,23 @@ class GPT(nn.Module):
             ln_f = nn.LayerNorm(config.n_embd) # 
         ))
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
+    
+    def forward(self, idx):
+        B, T = idx.size()
+        assert T <= self.config.block_size, f"Cannot forward input sequence of length {T}, block size is too small"
+        
+        # create the input seq
+        tok_emb = self.transformer.wte(idx)
+        pos = torch.arange(0, T, dtype=torch.long, device=idx.device)
+        pos_emb = self.transformer.wpe(pos)
+        x = tok_emb + pos_emb
+        
+        # forward transformer blocks
+        for block in self.transformer.h:
+            x = block(x)
+        
+        # forward the final layer norm
+        x = self.transformer.ln_f(x)
+        logits = self.lm_head(x)
+        return logits
+        
