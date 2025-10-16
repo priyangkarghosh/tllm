@@ -7,4 +7,4 @@ class GPTConfig:
     vocab_size: int = 512
     n_layer: int = 6
     n_head: int = 6
-    embedded_dim: int = 384
+    n_embd: int = 384
