@@ -24,7 +24,7 @@ for i, item in tqdm(enumerate(dataset), total=DATASET_ITEMS, desc="Loading text"
     if i >= DATASET_ITEMS - 1: break
 
 text = " ".join(items)
-print(f"\nTotal characters: {len(text):,}")
+print(f"Total characters: {len(text):,}")
 
 # train tokenizer
 tok.train(text, config.vocab_size)

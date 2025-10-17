@@ -146,9 +146,9 @@ class Tokenizer:
         # train using read data
         self.train(text, vocab_size, debug_hook)
         
-    def train(self, data: str, vocab_size: int, debug_hook: int = 100) -> None:      
+    def train(self, text: str, vocab_size: int, debug_hook: int = 100) -> None:      
         data = []
-        segments = re.split(self._special_token_pattern, data)
+        segments = re.split(self._special_token_pattern, text)
         for segment in segments:
             if segment in self._special_tokens: 
                 data.append([self._special_tokens[segment]])
