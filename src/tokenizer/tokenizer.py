@@ -3,6 +3,7 @@ import regex as re
 import numpy as np
 from heapq import *
 from collections import Counter, defaultdict
+from helpers import Timer
 
 GPT_REG_SPLIT = re.compile(
     r"""'(?i:[sdmt]|ll|ve|re)|[^\r\n\p{L}\p{N}]?+\p{L}+|\p{N}{1,3}| ?[^\s\p{L}\p{N}]++[\r\n]*|\s*[\r\n]|\s+(?!\S)|\s+"""
@@ -31,7 +32,7 @@ class Tokenizer:
     def _update_special_token_pattern(self):
         self._special_token_pattern = '(' + '|'.join(map(re.escape, self._special_tokens.keys())) + ')'
         
-    def _pair_stats(self, nodes: np.ndarray, chunk_heads: list) -> tuple[Counter, defaultdict[list]]:
+    def _pair_stats(self, nodes: np.ndarray, chunk_heads: np.ndarray) -> tuple[Counter, defaultdict[list]]:
         pair_stats = Counter()
         pair_positions = defaultdict(set)
         
@@ -110,32 +111,36 @@ class Tokenizer:
             heappush(heap, (-pair_stats[right], right))
             pair_positions[right].add(next_next)
     
-    def _build_training_chunks(self, data: list[list[int]]) -> tuple[np.ndarray, list[int]]:
-        token_count = sum(map(len, data))
+    def _build_training_chunks(self, data: list[list[int]]) -> tuple[np.ndarray, np.ndarray]:
+        # calculate chunk lengths
+        chunk_lengths = np.fromiter((len(c) for c in data), dtype=np.int32, count=len(data))
         
-        # build the chunks as a double linked list using np arrays
+        # calculate chunk offsets
+        chunk_offsets = np.empty_like(chunk_lengths)
+        np.cumsum(chunk_lengths[:-1], out=chunk_offsets[1:])
+        chunk_offsets[0] = 0
+        
+        # calculate token count
+        token_count = int(chunk_offsets[-1] + chunk_lengths[-1])
+        
+        # pre-allocate nodes array
         dtype = [('val', np.int32), ('prev', np.int32), ('next', np.int32)]
-        nodes = np.zeros(token_count, dtype=dtype)
-        nodes['prev'] = nodes['next'] = -1  # assume -1 as a nullptr
+        nodes = np.empty(token_count, dtype=dtype)
         
-        # build chunk heads
-        heads = []
-        current = 0
-        for chunk in data:
-            if not chunk: continue
-            
-            # set curr index as the start of a new chunk
-            start = current
-            heads.append(start)
-            
-            # build the linked list for this chunk
-            clen = len(chunk)
-            for i, token in enumerate(chunk):
-                nodes[current]['val'] = token
-                if i > 0: nodes[current]['prev'] = current - 1
-                if i < clen - 1: nodes[current]['next'] = current + 1
-                current += 1
-        return nodes, heads
+        # flatten all chunks to set values
+        nodes['val'][:] = np.concatenate(data)
+
+        # compute prev/next for all nodes at once
+        nodes['prev'] = np.arange(-1, token_count - 1, dtype=np.int32)
+        nodes['next'] = np.arange(1, token_count + 1, dtype=np.int32)
+        
+        # fix chunk boundaries
+        nodes['prev'][chunk_offsets] = -1
+        chunk_ends = chunk_offsets + chunk_lengths - 1
+        nodes['next'][chunk_ends] = -1
+        
+        # return nodes and chunk heads
+        return nodes, chunk_offsets
     
     def train_direct(self, data_path: str, vocab_size: int, debug_hook: int = 100) -> None:
         # read and encode training data
@@ -157,10 +162,14 @@ class Tokenizer:
                     list(chunk.encode("utf-8")) 
                     for chunk in GPT_REG_SPLIT.findall(segment)
                 ])
+        
+        # make sure data exists
+        if not data: return
 
         # building training chunks
         print("Building chunks...")
-        nodes, chunk_heads = self._build_training_chunks(data)
+        with Timer() as t: nodes, chunk_heads = self._build_training_chunks(data)
+        print(f"Built chunks in {t.elapsed:.4f} seconds")
         
         # initialize pair data
         print("Initializing pair data...")

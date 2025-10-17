@@ -4,30 +4,37 @@ from tokenizer import Tokenizer
 from datasets import load_dataset
 from tqdm import tqdm
 
-# init config
-config = GPTConfig()
+def main():
+    # init config
+    config = GPTConfig()
 
-# train tokenizer
-tok = Tokenizer()
-tok.register_special_tokens(["<|endoftext|>"])
+    # create tokenizer instance
+    tok = Tokenizer()
+    tok.register_special_tokens(["<|endoftext|>"])
 
-# load openwebtext and stream text
-DATASET_ITEMS = 10_000
-dataset = load_dataset(
-    "roneneldan/TinyStories", 
-    split="train", 
-    streaming=True,
-)
+    # load openwebtext and stream text
+    DATASET_ITEMS = 10_000
+    dataset = load_dataset(
+        "roneneldan/TinyStories", 
+        split="train", 
+        streaming=True,
+    )
 
-items = []
-for i, item in tqdm(enumerate(dataset, start=1), total=DATASET_ITEMS, desc="Loading text"):
-    items.append(item.get('text', ''))
-    if i >= DATASET_ITEMS: break
+    items = []
+    for i, item in tqdm(enumerate(dataset, start=1), total=DATASET_ITEMS, desc="Loading text"):
+        items.append(item.get('text', ''))
+        if i >= DATASET_ITEMS: break
 
-text = " ".join(items)
-print(f"Total characters: {len(text):,}")
+    text = " ".join(items)
+    print(f"Total characters: {len(text):,}")
 
-# train tokenizer
-with Timer() as t: tok.train(text, config.vocab_size)
-print(f"Training took {t.elapsed:.4f}s.")
-tok.save('snapshots/tkz.pkl')
+    # train tokenizer
+    with Timer() as t: tok.train(text, config.vocab_size)
+    print(f"Training took {t.elapsed:.4f} seconds.")
+    tok.save('snapshots/tkz.pkl')
+    
+    # make sure tokenizer is tokenizing properly
+    print(tok.decode(tok.encode('The quick brown fox jumps over the lazy dog')))
+
+if __name__ == '__main__':
+    main()
