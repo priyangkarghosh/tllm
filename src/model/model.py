@@ -5,6 +5,7 @@ from model.attention import CasualSelfAttention
 from model.config import GPTConfig
 from model.mlp import MLP
 
+
 class Block(nn.Module):
     def __init__(self, config: GPTConfig):
         super().__init__()
@@ -32,7 +33,7 @@ class GPT(nn.Module):
         ))
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
     
-    def forward(self, idx):
+    def forward(self, idx, targets=None):
         B, T = idx.size()
         assert T <= self.config.block_size, f"Cannot forward input sequence of length {T}, block size is too small"
         
@@ -49,5 +50,9 @@ class GPT(nn.Module):
         # forward the final layer norm
         x = self.transformer.ln_f(x)
         logits = self.lm_head(x)
-        return logits
+
+        # calculate loss
+        loss = (F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1)) 
+                if targets is not None else None)
+        return logits, loss
         

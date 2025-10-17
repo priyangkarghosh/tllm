@@ -3,6 +3,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 from model.config import GPTConfig
 
+
 class MLP(nn.Module):
     def __init__(self, config: GPTConfig, scale: int = 4):
         super().__init__()
