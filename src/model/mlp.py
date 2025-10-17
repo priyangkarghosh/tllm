@@ -10,7 +10,9 @@ class MLP(nn.Module):
         
         self.c_fc = nn.Linear(config.n_embd, scale * config.n_embd)
         self.gelu = nn.GELU() # works better in practice compared to ReLU
+        
         self.c_proj = nn.Linear(scale * config.n_embd, config.n_embd)
+        self.c_proj.NANOGPT_SCALE_INIT = 1 # no idea what this does
     
     def forward(self, x):
         x = self.c_fc(x)
