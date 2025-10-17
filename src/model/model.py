@@ -91,14 +91,14 @@ class GPT(nn.Module):
         ]
         
         # create adamw optimizer
-        use_fused = (device == 'cuda' and 'fused' in inspect.signature(optim.AdamW).parameters)
-        if use_fused: print('Using fused AdamW optimizer')
+        fused = (device == 'cuda' and 'fused' in inspect.signature(optim.AdamW).parameters)
+        if fused: print('Using fused AdamW optimizer')
         return optim.AdamW(
             optim_groups, 
             lr=learning_rate, 
             betas=betas, 
             eps=eps, 
-            use_fused=use_fused
+            fused=fused
         )
     
     def forward(self, idx, targets=None):
