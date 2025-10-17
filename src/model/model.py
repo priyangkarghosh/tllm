@@ -1,6 +1,8 @@
+import inspect
 import math
 import torch
 import torch.nn as nn
+import torch.optim as optim
 from torch.nn import functional as F
 from model.attention import CasualSelfAttention
 from model.config import GPTConfig
@@ -55,6 +57,49 @@ class GPT(nn.Module):
             if module.bias is not None: torch.nn.init.zeros_(module.bias)
         elif isinstance(module, nn.Embedding):
             torch.nn.init.normal_(module.weight, mean=0.0, std=self._std)
+
+    def configure_optimizer(
+        self, 
+        device: torch.device,
+        weight_decay: float, 
+        learning_rate: float, 
+        betas: tuple[float, float] = (0.9, 0.95),
+        eps: float = 1e-8
+    ) -> optim.Optimizer:
+        # start with all candidate params
+        param_dict = { pn:p for pn, p in self.named_parameters() if p.requires_grad }
+        
+        # find param groups
+        decay_params, nondecay_params = [], []
+        num_decay_params, num_nondecay_params = 0, 0
+        for n, p in param_dict.items():
+            if p.dim() >= 2: 
+                decay_params.append(p)
+                num_decay_params += p.numel()
+            else: 
+                nondecay_params.append(p)
+                num_nondecay_params += p.numel()
+        
+        # log parameter distribution
+        print(f"{len(decay_params)} tensors, totalling {num_decay_params:,} parameters will receive weight decay.")
+        print(f"{len(decay_params)} tensors, totalling {num_nondecay_params:,} parameters will not receive weight decay.")
+         
+        # create optim groups
+        optim_groups = [
+            { 'params': decay_params, 'weight_decay': weight_decay },
+            { 'params': nondecay_params, 'weight_decay': 0.0 }
+        ]
+        
+        # create adamw optimizer
+        use_fused = (device == 'cuda' and 'fused' in inspect.signature(optim.AdamW).parameters)
+        if use_fused: print('Using fused AdamW optimizer')
+        return optim.AdamW(
+            optim_groups, 
+            lr=learning_rate, 
+            betas=betas, 
+            eps=eps, 
+            use_fused=use_fused
+        )
     
     def forward(self, idx, targets=None):
         B, T = idx.size()

@@ -23,7 +23,7 @@ model.to(device)
 # model = torch.compile(model) <- isn't always supported by windows
 
 # learning rate and optimizer
-optimizer = optim.AdamW(model.parameters(), lr=3e-4,betas=(0.9, 0.95), eps=1e-8)
+optimizer = model.configure_optimizer(device, 0.1, 6e-4)
 scheduler = CosineDecayLR(optimizer, 3e-4, 0.1 * 3e-4, 10, 50)
 
 num_steps = 50 

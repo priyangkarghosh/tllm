@@ -36,5 +36,6 @@ class DataLoader():
         # reset batch offset if we reach the end of our tokens
         self.batch_offset += P
         if self.batch_offset + P + 1 > len(self.tokens):
+            print(f"Batch offset reset after epoch boundary reached")
             self.batch_offset = 0
         return self.x, self.y
