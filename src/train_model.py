@@ -1,6 +1,7 @@
+import math
 import torch
 import torch.optim as optim
-from data_loader.data_loader import DataLoader
+from training import DataLoader, CosineDecayLR
 from model import GPTConfig, GPT
 from tokenizer import Tokenizer
 
@@ -16,19 +17,26 @@ config = GPTConfig()
 tok = Tokenizer.load('./checkpoints/tkz.pkl')
 
 # create batches
-tl = DataLoader(device, 4, 32, tok, "./data/tiny_shakespeare.txt")
+tl = DataLoader(device, 4, 1024, tok, "./data/tiny_shakespeare.txt")
 model = GPT(config)
 model.to(device)
 # model = torch.compile(model) <- isn't always supported by windows
 
-optimizer = optim.AdamW(model.parameters(), lr=3e-4)
-for i in range(50):
+# learning rate and optimizer
+optimizer = optim.AdamW(model.parameters(), lr=3e-4,betas=(0.9, 0.95), eps=1e-8)
+scheduler = CosineDecayLR(optimizer, 3e-4, 0.1 * 3e-4, 10, 50)
+
+num_steps = 50 
+for i in range(num_steps):    
     x, y = tl.next_batch()
     optimizer.zero_grad()
     
-    #with torch.autocast(device_type=device, dtype=torch.bfloat16): <-- turn this back on for 3090
     logits, loss = model(x, y)
-        
+    
     loss.backward()
+    norm = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+    
+    lr = scheduler.step()
     optimizer.step()
-    print(f"step: {i}, loss: {loss.item()}")
+
+    print(f"step: {i} | loss: {loss.item():.6f} | norm: {norm: .4f} | lr: {lr:.6f}")

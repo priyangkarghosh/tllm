@@ -11,7 +11,7 @@ tok = Tokenizer()
 tok.register_special_tokens(["<|bos|>", "<|eos|>"])
 
 # load openwebtext and stream text
-DATASET_ITEMS = 10_000
+DATASET_ITEMS = 50_000
 dataset = load_dataset(
     "roneneldan/TinyStories", 
     split="train", 
