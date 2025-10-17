@@ -37,11 +37,7 @@ class CasualSelfAttention(nn.Module):
         v = v.view(B, T, self.n_head, H).transpose(1, 2)
 
         # scaled dot-product attention
-        att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(H))
-        att = att.masked_fill(self.bias[:, :, :T, :T] == 0, float('-inf'))
-        att = F.softmax(att, dim=-1)
-
-        y = att @ v  # (B, n_head, T, H)
+        y = F.scaled_dot_product_attention(q, k, v, is_causal=True)
         y = y.transpose(1, 2).contiguous().view(B, T, C)
         y = self.c_proj(y)
         return y

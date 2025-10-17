@@ -15,7 +15,7 @@ class DataLoader():
         
         # create token tensor
         with open(data_path, 'r') as f: text = f.read()
-        self.tokens = torch.tensor(tok.encode(text), dtype=torch.long)  # load on cpu initially to save vram
+        self.tokens = torch.tensor(tok.encode(text))  # load on cpu initially to save vram
         print(f"Data loaded with {len(self.tokens)} tokens, with {len(self.tokens) // (B * T)} batches per epoch.")
         
         # pre-allocate x, y tensors on selected device
