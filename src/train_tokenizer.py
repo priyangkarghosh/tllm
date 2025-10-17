@@ -8,7 +8,7 @@ config = GPTConfig()
 
 # train tokenizer
 tok = Tokenizer()
-tok.register_special_tokens(["<|bos|>", "<|eos|>"])
+tok.register_special_tokens(["<|endoftext|>"])
 
 # load openwebtext and stream text
 DATASET_ITEMS = 50_000
@@ -28,3 +28,4 @@ print(f"Total characters: {len(text):,}")
 
 # train tokenizer
 tok.train(text, config.vocab_size)
+tok.save('snapshots/tkz.pkl')
