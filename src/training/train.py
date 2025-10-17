@@ -72,9 +72,8 @@ def train(
         # save snapshot
         step += 1
         if step % snapshot_interval == 0 or step == num_steps:
-            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-            loss_str = f"{total_loss.item():.4f}".replace(".", "p")
-            name = f"ss_step{step}_loss{loss_str}_{timestamp}.pt"
+            timestamp = datetime.now().strftime("%Y%m%d-%H:%M")
+            name = f"ss_step{step}_loss{total_loss.item():.4f}_{timestamp}.pt"
             path = os.path.join(snapshot_dir, name)
             
             torch.save({
@@ -85,7 +84,7 @@ def train(
                 'loss': total_loss.item(),
             }, path)
             
-            tqdm.write(f"snapshot saved to {path}")
+            tqdm.write(f"Snapshot saved to {path}")
     
     print("Training complete")
     return model

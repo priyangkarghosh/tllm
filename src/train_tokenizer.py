@@ -11,7 +11,7 @@ tok = Tokenizer()
 tok.register_special_tokens(["<|endoftext|>"])
 
 # load openwebtext and stream text
-DATASET_ITEMS = 50_000
+DATASET_ITEMS = 10_000
 dataset = load_dataset(
     "roneneldan/TinyStories", 
     split="train", 
@@ -19,9 +19,9 @@ dataset = load_dataset(
 )
 
 items = []
-for i, item in tqdm(enumerate(dataset), total=DATASET_ITEMS, desc="Loading text"):
+for i, item in tqdm(enumerate(dataset, start=1), total=DATASET_ITEMS, desc="Loading text"):
     items.append(item.get('text', ''))
-    if i >= DATASET_ITEMS - 1: break
+    if i >= DATASET_ITEMS: break
 
 text = " ".join(items)
 print(f"Total characters: {len(text):,}")
