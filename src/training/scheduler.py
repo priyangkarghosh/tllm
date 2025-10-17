@@ -34,15 +34,19 @@ class CosineDecayLR(LRScheduler):
     def get_lr(self):
         # linear warmup
         if self.last_epoch < self.warmup_steps:
-            return self.max_lr * (self.last_epoch + 1) / self.warmup_steps
-
-        # reached total steps
-        if self.last_epoch > self.total_steps: return self.min_lr
+            lr = self.max_lr * (self.last_epoch + 1) / self.warmup_steps
         
+        # reached total steps
+        elif self.last_epoch > self.total_steps: 
+            lr = self.min_lr 
+    
         # cosine decay
-        decay = (self.last_epoch - self.warmup_steps) / max(1, self.total_steps - self.warmup_steps)
-        assert 0 <= decay <= 1
-        coeff = 0.5 * (1 + math.cos(math.pi * decay))
-        lr = self.min_lr + coeff * (self.max_lr - self.min_lr)
+        else: 
+            decay = (self.last_epoch - self.warmup_steps) / max(1, self.total_steps - self.warmup_steps)
+            assert 0 <= decay <= 1
+            coeff = 0.5 * (1 + math.cos(math.pi * decay))
+            lr = self.min_lr + coeff * (self.max_lr - self.min_lr)
+        
+        # return lr for every parameter group
         return [lr for _ in self.optimizer.param_groups]
     
