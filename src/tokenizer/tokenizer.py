@@ -130,7 +130,34 @@ class Tokenizer:
             pair_stats[right := (token_id, int(nodes[next_next]['val']))] += 1
             heappush(heap, (-pair_stats[right], right))
             pair_positions[right].append(next_next)
-    
+            
+    def _merge_tokens(
+        self, 
+        nodes: np.ndarray, 
+        token: tuple[int, int], 
+        token_id: int, 
+        pair_stats: dict, 
+        pair_positions: defaultdict, 
+        heap: list
+    ) -> None:
+        a, b = token
+        indices = pair_positions[token]
+        if len(indices) == 0: return
+                
+        # vectorized validation
+        indices = np.array(indices)
+        next_indices = nodes['next'][indices]
+        valid_mask = (
+            (next_indices != -1) &
+            (nodes['val'][indices] == a) &
+            (nodes['val'][next_indices] == b)
+        )
+        
+        # batch merge all valid nodes
+        for i in indices[valid_mask]: self._merge_node(
+            nodes, i, token_id, pair_stats, pair_positions, heap
+        )
+            
     def _build_training_chunks(self, data: list[list[int]]) -> np.ndarray:
         # calculate chunk lengths
         chunk_lengths = np.fromiter((len(c) for c in data), dtype=np.int32, count=len(data))
@@ -170,7 +197,7 @@ class Tokenizer:
         
         # train using read data
         self.train(text, vocab_size, debug_hook)
-        
+               
     def train(self, text: str, vocab_size: int, debug_hook: int = 100) -> None:      
         data = []
         segments = re.split(self._special_token_pattern, text)
@@ -225,11 +252,7 @@ class Tokenizer:
             self._merges[token] = token_id
             
             # apply merge to all chunks
-            for i in pair_positions[token]:
-                # verify this token still exists
-                next = nodes[i]['next']
-                if next == -1 or nodes[i]['val'] != a or nodes[next]['val'] != b: continue
-                self._merge_node(nodes, i, token_id, pair_stats, pair_positions, heap)
+            self._merge_tokens(nodes, token, token_id, pair_stats, pair_positions, heap)
 
             # zero out merged pair count
             pair_stats[token] = 0
