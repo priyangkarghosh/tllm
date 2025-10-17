@@ -32,6 +32,19 @@ class GPT(nn.Module):
             ln_f = nn.LayerNorm(config.n_embd) # 
         ))
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
+        
+        # weight sharing scheme
+        # -> saves params and improves model since it explicitly tells the model
+        # -> that these two layers should have similar weights
+        self.transformer.wte.weight = self.lm_head.weight
+    
+    # magic numbers from gpt2 code
+    def _init_weights(self, module: nn.Linear | nn.Embedding):
+        if isinstance(module, nn.Linear):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            if module.bias is not None: torch.nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
     
     def forward(self, idx, targets=None):
         B, T = idx.size()
