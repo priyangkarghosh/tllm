@@ -31,21 +31,42 @@ class Tokenizer:
     
     def _update_special_token_pattern(self):
         self._special_token_pattern = '(' + '|'.join(map(re.escape, self._special_tokens.keys())) + ')'
+    
+    # only called once after initial chunks built
+    # -> use chunk heads to build stats
+    def _pair_stats(self, nodes: np.ndarray) -> tuple[Counter, defaultdict[list]]:
+        # # find valid nodes (not a chunk boundary)
+        # valid_mask = nodes['next'] != -1
+        # valid_indices = np.flatnonzero(valid_mask)
         
-    def _pair_stats(self, nodes: np.ndarray, chunk_heads: np.ndarray) -> tuple[Counter, defaultdict[list]]:
+        # # create pairs array
+        # pairs = np.column_stack([
+        #     nodes['val'][valid_indices], 
+        #     nodes['val'][nodes['next'][valid_indices]]
+        # ])
+
+        # # build the hash table for the pairs (get pair counts along with it)
+        # unique_pairs, pair_keys, pair_stats = np.unique(
+        #     pairs, axis=0, return_inverse=True, return_counts=True
+        # )
+        
+        # # sort valid indices and pair keys
+        # sort_idx = np.argsort(pair_keys)
+        # sorted_indices = valid_indices[sort_idx]
+        # sorted_keys = pair_keys[sort_idx]
+        
+        # # split at boundaries
+        # split_points = np.flatnonzero(np.diff(sorted_keys)) + 1
+        # pair_positions = np.split(sorted_indices, split_points)
+        
         pair_stats = Counter()
-        pair_positions = defaultdict(set)
-        
-        for head in chunk_heads:
-            node = head
-            while node != -1:
-                next = nodes[node]['next']
-                if next != -1:
-                    pair = (int(nodes[node]['val']), int(nodes[next]['val']))
-                    pair_stats[pair] += 1
-                    pair_positions[pair].add(node)
-                node = next
-       
+        pair_positions = defaultdict(list)
+        for i in range(len(nodes)):
+            next = nodes[i]['next']
+            if next != -1:
+                pair = (int(nodes[i]['val']), int(nodes[next]['val']))
+                pair_stats[pair] += 1
+                pair_positions[pair].append(i)
         return pair_stats, pair_positions
    
     def _merge(
@@ -104,14 +125,14 @@ class Tokenizer:
         if prev != -1:
             pair_stats[left := (int(nodes[prev]['val']), token_id)] += 1
             heappush(heap, (-pair_stats[left], left))
-            pair_positions[left].add(prev)
+            pair_positions[left].append(prev)
         
         if next_next != -1:
             pair_stats[right := (token_id, int(nodes[next_next]['val']))] += 1
             heappush(heap, (-pair_stats[right], right))
-            pair_positions[right].add(next_next)
+            pair_positions[right].append(next_next)
     
-    def _build_training_chunks(self, data: list[list[int]]) -> tuple[np.ndarray, np.ndarray]:
+    def _build_training_chunks(self, data: list[list[int]]) -> np.ndarray:
         # calculate chunk lengths
         chunk_lengths = np.fromiter((len(c) for c in data), dtype=np.int32, count=len(data))
         
@@ -140,7 +161,7 @@ class Tokenizer:
         nodes['next'][chunk_ends] = -1
         
         # return nodes and chunk heads
-        return nodes, chunk_offsets
+        return nodes
     
     def train_direct(self, data_path: str, vocab_size: int, debug_hook: int = 100) -> None:
         # read and encode training data
@@ -155,25 +176,23 @@ class Tokenizer:
         data = []
         segments = re.split(self._special_token_pattern, text)
         for segment in segments:
-            if segment in self._special_tokens: 
+            if segment in self._special_tokens:
                 data.append([self._special_tokens[segment]])
-            else: 
-                data.extend([
-                    list(chunk.encode("utf-8")) 
-                    for chunk in GPT_REG_SPLIT.findall(segment)
-                ])
+            else:
+                for match in GPT_REG_SPLIT.finditer(segment):
+                    data.append(list(match.group().encode("utf-8")))
         
         # make sure data exists
         if not data: return
 
         # building training chunks
         print("Building chunks...")
-        with Timer() as t: nodes, chunk_heads = self._build_training_chunks(data)
+        with Timer() as t: nodes = self._build_training_chunks(data)
         print(f"Built chunks in {t.elapsed:.4f} seconds")
         
         # initialize pair data
         print("Initializing pair data...")
-        pair_stats, pair_positions = self._pair_stats(nodes, chunk_heads)
+        pair_stats, pair_positions = self._pair_stats(nodes)
         
         # build max heap using pair data
         heap = [(-count, pair) for pair, count in pair_stats.items()]

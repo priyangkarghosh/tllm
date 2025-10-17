@@ -34,7 +34,7 @@ def main():
     tok.save('snapshots/tkz.pkl')
     
     # make sure tokenizer is tokenizing properly
-    print(tok.decode(tok.encode('The quick brown fox jumps over the lazy dog')))
+    print(tok.decode(tok.encode('The quick brown fox jumps over the lazy dog.')))
 
 if __name__ == '__main__':
     main()
