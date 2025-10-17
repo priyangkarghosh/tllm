@@ -1,3 +1,4 @@
+import math
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
@@ -37,14 +38,17 @@ class GPT(nn.Module):
         # -> saves params and improves model since it explicitly tells the model
         # -> that these two layers should have similar weights
         self.transformer.wte.weight = self.lm_head.weight
+        
+        # apply weights
+        self._std = 1.0 / math.sqrt(config.n_embd) # javier initialization..?
+        self.apply(self._init_weights)
     
-    # magic numbers from gpt2 code
     def _init_weights(self, module: nn.Linear | nn.Embedding):
         if isinstance(module, nn.Linear):
-            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            torch.nn.init.normal_(module.weight, mean=0.0, std=self._std)
             if module.bias is not None: torch.nn.init.zeros_(module.bias)
         elif isinstance(module, nn.Embedding):
-            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            torch.nn.init.normal_(module.weight, mean=0.0, std=self._std)
     
     def forward(self, idx, targets=None):
         B, T = idx.size()
