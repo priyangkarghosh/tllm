@@ -34,41 +34,40 @@ class Tokenizer:
     
     # only called once after initial chunks built
     # -> use chunk heads to build stats
-    def _pair_stats(self, nodes: np.ndarray) -> tuple[Counter, defaultdict[list]]:
-        # # find valid nodes (not a chunk boundary)
-        # valid_mask = nodes['next'] != -1
-        # valid_indices = np.flatnonzero(valid_mask)
+    def _pair_stats(self, nodes: np.ndarray) -> tuple[Counter, defaultdict]:
+        # find valid nodes (not a chunk boundary)
+        valid_mask = nodes['next'] != -1
+        valid_indices = np.flatnonzero(valid_mask)
+    
+        # create pairs array
+        pairs = np.column_stack([
+            nodes['val'][valid_indices],
+            nodes['val'][nodes['next'][valid_indices]]
+        ])
         
-        # # create pairs array
-        # pairs = np.column_stack([
-        #     nodes['val'][valid_indices], 
-        #     nodes['val'][nodes['next'][valid_indices]]
-        # ])
+        # build the hash table for the pairs (get pair counts along with it)
+        unique_pairs, pair_keys, pair_stats = np.unique(
+            pairs, axis=0, return_inverse=True, return_counts=True
+        )
+    
+        # sort valid indices and pair keys
+        sort_idx = np.argsort(pair_keys)
+        sorted_indices = valid_indices[sort_idx]
+        sorted_keys = pair_keys[sort_idx]
+    
+        # split at boundaries
+        split_points = np.flatnonzero(np.diff(sorted_keys)) + 1
+        pair_positions = np.split(sorted_indices, split_points)
+        
+        # convert to counter and defaultdict
+        stats = Counter()
+        positions = defaultdict(list)
+        for i, pair in enumerate(unique_pairs):
+            pair_tuple = tuple((int(pair[0]), int(pair[1])))
+            stats[pair_tuple] = int(pair_stats[i])
+            positions[pair_tuple] = pair_positions[i].tolist()
+        return stats, positions
 
-        # # build the hash table for the pairs (get pair counts along with it)
-        # unique_pairs, pair_keys, pair_stats = np.unique(
-        #     pairs, axis=0, return_inverse=True, return_counts=True
-        # )
-        
-        # # sort valid indices and pair keys
-        # sort_idx = np.argsort(pair_keys)
-        # sorted_indices = valid_indices[sort_idx]
-        # sorted_keys = pair_keys[sort_idx]
-        
-        # # split at boundaries
-        # split_points = np.flatnonzero(np.diff(sorted_keys)) + 1
-        # pair_positions = np.split(sorted_indices, split_points)
-        
-        pair_stats = Counter()
-        pair_positions = defaultdict(list)
-        for i in range(len(nodes)):
-            next = nodes[i]['next']
-            if next != -1:
-                pair = (int(nodes[i]['val']), int(nodes[next]['val']))
-                pair_stats[pair] += 1
-                pair_positions[pair].append(i)
-        return pair_stats, pair_positions
-   
     def _merge(
         self, 
         data: list[int], 
@@ -192,8 +191,9 @@ class Tokenizer:
         
         # initialize pair data
         print("Initializing pair data...")
-        pair_stats, pair_positions = self._pair_stats(nodes)
-        
+        with Timer() as t: pair_stats, pair_positions = self._pair_stats(nodes)
+        print(f"Initialized pair data in {t.elapsed:.4f} seconds")
+
         # build max heap using pair data
         heap = [(-count, pair) for pair, count in pair_stats.items()]
         heapify(heap)
