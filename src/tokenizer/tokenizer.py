@@ -136,14 +136,19 @@ class Tokenizer:
                 if i < clen - 1: nodes[current]['next'] = current + 1
                 current += 1
         return nodes, heads
-        
-    def train(self, data_path: str, vocab_size: int, debug_hook: int = 100) -> None:
+    
+    def train_direct(self, data_path: str, vocab_size: int, debug_hook: int = 100) -> None:
         # read and encode training data
         print("Reading data...")
-        with open(data_path, "r", encoding="utf-8") as f: text = f.read()
+        with open(data_path, "r", encoding="utf-8") as f: 
+            text = f.read()
         
+        # train using read data
+        self.train(text, vocab_size, debug_hook)
+        
+    def train(self, data: str, vocab_size: int, debug_hook: int = 100) -> None:      
         data = []
-        segments = re.split(self._special_token_pattern, text)
+        segments = re.split(self._special_token_pattern, data)
         for segment in segments:
             if segment in self._special_tokens: 
                 data.append([self._special_tokens[segment]])
