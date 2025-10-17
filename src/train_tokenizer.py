@@ -1,3 +1,4 @@
+from helpers import Timer
 from model import GPTConfig
 from tokenizer import Tokenizer
 from datasets import load_dataset
@@ -27,5 +28,6 @@ text = " ".join(items)
 print(f"Total characters: {len(text):,}")
 
 # train tokenizer
-tok.train(text, config.vocab_size)
+with Timer() as t: tok.train(text, config.vocab_size)
+print(f"Training took {t.elapsed:.4f}s.")
 tok.save('snapshots/tkz.pkl')
