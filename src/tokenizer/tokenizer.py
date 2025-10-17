@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 import pickle
 import regex as re
 import numpy as np
@@ -32,41 +33,58 @@ class Tokenizer:
     def _update_special_token_pattern(self):
         self._special_token_pattern = '(' + '|'.join(map(re.escape, self._special_tokens.keys())) + ')'
     
-    # only called once after initial chunks built
-    # -> use chunk heads to build stats
-    def _pair_stats(self, nodes: np.ndarray) -> tuple[Counter, defaultdict]:
-        # find valid nodes (not a chunk boundary)
+    def _pair_stats(self, nodes: np.ndarray, n_threads: int = 8) -> tuple[Counter, defaultdict]:
+        # find valid nodes (not chunk boundaries)
         valid_mask = nodes['next'] != -1
         valid_indices = np.flatnonzero(valid_mask)
-    
-        # create pairs array
-        pairs = np.column_stack([
-            nodes['val'][valid_indices],
-            nodes['val'][nodes['next'][valid_indices]]
-        ])
+        if len(valid_indices)== 0:
+            return Counter(), defaultdict(list)
         
-        # get pair counts
-        unique_pairs, pair_keys, pair_stats = np.unique(
-            pairs, axis=0, return_inverse=True, return_counts=True
-        )
-    
-        # sort valid indices and pair keys
-        sort_idx = np.argsort(pair_keys)
-        sorted_indices = valid_indices[sort_idx]
-        sorted_keys = pair_keys[sort_idx]
-    
-        # split at boundaries to get pair positions
-        split_points = np.flatnonzero(np.diff(sorted_keys)) + 1
-        pair_positions = np.split(sorted_indices, split_points)
+        # split valid indices for each thread
+        splits = np.array_split(valid_indices, n_threads)
+        def worker(indices):
+            # each thread computes pairs and local counts
+            # create pairs
+            pairs = np.column_stack([
+                nodes['val'][indices],
+                nodes['val'][nodes['next'][indices]]
+            ])
+            
+            # calculate pair counts
+            unique_pairs, pair_keys, pair_counts = np.unique(
+                pairs, axis=0, return_inverse=True, return_counts=True
+            )
+            
+            # sort valid indices and pair keys
+            sort_idx = np.argsort(pair_keys)
+            sorted_indices = indices[sort_idx]
+            sorted_keys = pair_keys[sort_idx]
+            
+            # split at boundaries to get pair positions
+            bounds = np.flatnonzero(np.diff(sorted_keys)) + 1
+            pair_positions = np.split(sorted_indices, bounds)
+            
+            # convert to counter and defaultdict
+            stats = Counter()
+            positions = {}
+            for i, pair in enumerate(unique_pairs):
+                pair_tuple = (int(pair[0]), int(pair[1]))
+                stats[pair_tuple] = int(pair_counts[i])
+                positions[pair_tuple] = pair_positions[i].tolist()
+            return stats, positions
         
-        # convert to counter and defaultdict
-        stats = Counter()
-        positions = defaultdict(list)
-        for i, pair in enumerate(unique_pairs):
-            pair_tuple = tuple((int(pair[0]), int(pair[1])))
-            stats[pair_tuple] = int(pair_stats[i])
-            positions[pair_tuple] = pair_positions[i].tolist()
-        return stats, positions
+        # run workers in parallel
+        with ThreadPoolExecutor(max_workers=n_threads) as executor:
+            results = list(executor.map(worker, splits))
+        
+        # merge results
+        final_stats = Counter()
+        final_positions = defaultdict(list)
+        for stats, positions in results:
+            final_stats.update(stats)
+            for k, v in positions.items():
+                final_positions[k].extend(v)
+        return final_stats, final_positions
 
     def _merge(
         self, 
