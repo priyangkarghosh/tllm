@@ -15,19 +15,26 @@ class DataLoader():
         
         # create token tensor
         with open(data_path, 'r') as f: text = f.read()
-        self.tokens = torch.tensor(tok.encode(text), device=device)
-        print(f"Data loaded with {len(self.tokens)} tokens, with {len(self.tokens) // (B * T)} tokens per epoch.")
+        self.tokens = torch.tensor(tok.encode(text), dtype=torch.long)  # load on cpu initially to save vram
+        print(f"Data loaded with {len(self.tokens)} tokens, with {len(self.tokens) // (B * T)} batches per epoch.")
         
+        # pre-allocate x, y tensors on selected device
+        self.x = torch.empty((B, T), dtype=torch.long, device=self.device)
+        self.y = torch.empty((B, T), dtype=torch.long, device=self.device)
+
         # current batch
         self.batch_offset = 0
     
     def next_batch(self) -> tuple[torch.Tensor, torch.Tensor]:
-        B, T, P = self.B, self.T, B * P
-        buf = torch.tensor(self.tokens[self.batch_offset : self.batch_offset + P + 1], device=self.device)
-        x, y = buf[:-1].view(B, T), buf[1:].view(B, T)
+        B, T, P = self.B, self.T, self.B * self.T
+        
+        # create buffer views for new batch
+        buf = self.tokens[self.batch_offset : self.batch_offset + P + 1]
+        self.x.copy_(buf[:-1].view(B, T))
+        self.y.copy_(buf[1:].view(B, T))
 
         # reset batch offset if we reach the end of our tokens
         self.batch_offset += P
         if self.batch_offset + P + 1 > len(self.tokens):
             self.batch_offset = 0
-        return x, y
+        return self.x, self.y
