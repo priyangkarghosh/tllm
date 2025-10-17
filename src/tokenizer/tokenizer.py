@@ -45,7 +45,7 @@ class Tokenizer:
             nodes['val'][nodes['next'][valid_indices]]
         ])
         
-        # build the hash table for the pairs (get pair counts along with it)
+        # get pair counts
         unique_pairs, pair_keys, pair_stats = np.unique(
             pairs, axis=0, return_inverse=True, return_counts=True
         )
@@ -55,7 +55,7 @@ class Tokenizer:
         sorted_indices = valid_indices[sort_idx]
         sorted_keys = pair_keys[sort_idx]
     
-        # split at boundaries
+        # split at boundaries to get pair positions
         split_points = np.flatnonzero(np.diff(sorted_keys)) + 1
         pair_positions = np.split(sorted_indices, split_points)
         
