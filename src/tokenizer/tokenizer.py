@@ -207,16 +207,16 @@ class Tokenizer:
         # return nodes and chunk heads
         return nodes
     
-    def train_direct(self, data_path: str, vocab_size: int, debug_hook: int = 100) -> None:
+    def train_direct(self, data_path: str, vocab_size: int, debug_hook: int = 100) -> bool:
         # read and encode training data
         print("Reading data...")
         with open(data_path, "r", encoding="utf-8") as f: 
             text = f.read()
         
         # train using read data
-        self.train(text, vocab_size, debug_hook)
+        return self.train(text, vocab_size, debug_hook)
                
-    def train(self, text: str, vocab_size: int, debug_hook: int = 100) -> None:      
+    def train(self, text: str, vocab_size: int, debug_hook: int = 100) -> bool:      
         data = []
         segments = re.split(self._special_token_pattern, text)
         for segment in segments:
@@ -224,10 +224,10 @@ class Tokenizer:
                 data.append([self._special_tokens[segment]])
             else:
                 for match in GPT_REG_SPLIT.finditer(segment):
-                    data.append(list(match.group().encode("utf-8")))
+                    data.append(self.encode(match.group(), skip_chunking=True))
         
         # make sure data exists
-        if not data: return
+        if not data: return 0
 
         # building training chunks
         print("Building chunks...")
@@ -249,7 +249,7 @@ class Tokenizer:
         num_merges = vocab_size - merge_start
         if num_merges <= 0: 
             print("Current vocabulary length exceeds given target")
-            return
+            return 0
         
         for merge in range(num_merges):
             # remove stale entries from the heap
@@ -279,20 +279,23 @@ class Tokenizer:
             # debugging prints
             if merge % debug_hook == 0: print(f"Merge {merge}: {token} → {token_id}")
         
-        print(f'Finished training with {256 + merge} total vocabulary size.')
+        print(f'Finished training with {merge} merges and {self.vocab_size} total vocabulary size.')
+        return 1
 
     def decode(self, data: list[int]) -> str:
         tokens = b"".join(self._vocab[token_id] for token_id in data)
         return tokens.decode("utf-8", errors="replace")
    
-    def encode(self, text: str) -> list[int]:
+    def encode(self, text: str, skip_chunking: bool = False) -> list[int]:
         # split text into chunks
-        chunks = []
-        segments = re.split(self._special_token_pattern, text)
-        for segment in segments:
-            if segment in self._special_tokens: chunks.append(segment)
-            else: chunks.extend(GPT_REG_SPLIT.findall(segment))
-                    
+        if not skip_chunking: 
+            chunks = []
+            segments = re.split(self._special_token_pattern, text)
+            for segment in segments:
+                if segment in self._special_tokens: chunks.append(segment)
+                else: chunks.extend(GPT_REG_SPLIT.findall(segment))
+        else: chunks = [text]
+    
         tokens = []
         for chunk in chunks:
             # check if this is a special token and handle it as such

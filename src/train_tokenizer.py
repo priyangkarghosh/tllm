@@ -1,8 +1,11 @@
-from helpers import Timer
+import json
 from model import GPTConfig
 from tokenizer import Tokenizer
 from datasets import load_dataset
 from tqdm import tqdm
+
+BATCH_SIZE = 10_000
+NUM_BATCHES = 15
 
 def main():
     # init config
@@ -12,30 +15,37 @@ def main():
     tok = Tokenizer()
     tok.register_special_tokens(["<|endoftext|>"])
 
-    # load openwebtext and stream text
-    DATASET_ITEMS = 10_000
+    # load dataset
     dataset = load_dataset(
         "roneneldan/TinyStories", 
-        split="train", 
-        streaming=True,
+        split="train", streaming=True
     )
 
-    items = []
-    for i, item in tqdm(enumerate(dataset, start=1), total=DATASET_ITEMS, desc="Loading text"):
-        items.append(item.get('text', ''))
-        if i >= DATASET_ITEMS: break
+    # go through each batch
+    dataset_iter = iter(dataset)
+    for batch in range(NUM_BATCHES):
+        batch_data = []
+        for _ in tqdm(range(BATCH_SIZE), desc=f"Processing batch {batch + 1}"):
+            try: item = next(dataset_iter)
+            except StopIteration: break
+            batch_data.append(item.get("text", ""))
+        batch_text = " ".join(batch_data)
 
-    text = " ".join(items)
-    print(f"Total characters: {len(text):,}")
-
-    # train tokenizer
-    with Timer() as t: tok.train(text, config.vocab_size)
-    print(f"Training took {t.elapsed:.4f} seconds.")
-    tok.save('snapshots/tkz.pkl')
+        # train tokenizer on this batch
+        # -> stop if training errors
+        if not tok.train(batch_text, config.vocab_size):
+            break
+        
+        # check if we reached the end of the dataset
+        if len(batch_data) != BATCH_SIZE:
+            break
     
     # make sure tokenizer is tokenizing properly
+    tok.save()
     test = "The quick brown fox jumps over the lazy dog.*21nk..d180)_)9zujz\n\n\n//...."
-    print(val := tok.decode(tok.encode(test)))
+    
+    enc = tok.encode(test)
+    print(len(enc), val := tok.decode(enc))
     print(test == val)
 
 if __name__ == '__main__':
