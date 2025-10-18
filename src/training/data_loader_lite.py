@@ -1,7 +1,7 @@
 import torch
 from tokenizer import Tokenizer
 
-class DataLoader():
+class DataLoaderLite():
     def __init__(
         self, 
         device: torch.device,

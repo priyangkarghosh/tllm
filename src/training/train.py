@@ -4,22 +4,30 @@ import torch.optim as optim
 from tqdm import tqdm
 from model import GPT
 from datetime import datetime
-from training.data_loader import DataLoader
+from training.data_loader_lite import DataLoaderLite
+
+def resume_training(
+    device: torch.device,
+    optimizer: optim.Optimizer,
+    scheduler: optim.lr_scheduler.LRScheduler,
+    checkpoint: str,
+) -> None:
+    pass
 
 def train(
     device: torch.device,
     model: GPT,
-    train_loader: DataLoader,
+    train_loader: DataLoaderLite,
     optimizer: optim.Optimizer,
     scheduler: optim.lr_scheduler.LRScheduler,
     num_steps: int = 50,
     grad_accum_steps: int = 1,
-    snapshot_dir: str = "./snapshots",
-    snapshot_interval: int = 10,
+    checkpoint: str = "./checkpoint",
+    snapshot_interval: int = -1,
     resume_path: str = None  # path to snapshot to resume from
-):
+) -> None:
     # create snapshot directory if it doesn't exist
-    os.makedirs(snapshot_dir, exist_ok=True)
+    os.makedirs(checkpoint, exist_ok=True)
         
     # resume from snapshot if specified
     start = 0
@@ -71,20 +79,19 @@ def train(
         
         # save snapshot
         step += 1
-        if step % snapshot_interval == 0 or step == num_steps:
-            timestamp = datetime.now().strftime("%Y%m%d-%H:%M")
-            name = f"ss_step{step}_loss{total_loss.item():.4f}_{timestamp}.pt"
-            path = os.path.join(snapshot_dir, name)
+        if snapshot_interval != -1 and (step % snapshot_interval == 0 or step == num_steps):
+            timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
+            loss_str = f"{total_loss.item():.4f}".replace('.', 'p')
+            name = f"SS_L{loss_str}_{timestamp}.pt"
+            path = os.path.join(checkpoint, name)
             
             torch.save({
                 'step': step,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'scheduler_state_dict': scheduler.state_dict(),
+                'model': model.state_dict(),
+                'optimizer': optimizer.state_dict(),
+                'scheduler': scheduler.state_dict(),
+                'config': vars(model.config),
                 'loss': total_loss.item(),
             }, path)
-            
-            tqdm.write(f"Snapshot saved to {path}")
-    
-    print("Training complete")
-    return model
+
+    print("Finished training")

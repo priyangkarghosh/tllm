@@ -123,4 +123,23 @@ class GPT(nn.Module):
         loss = (F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1)) 
                 if targets is not None else None)
         return logits, loss
+    
+    def save(self, path: str) -> None:
+        checkpoint = {
+            "model": self.state_dict(),
+            "config": vars(self.config),
+        }
         
+        torch.save(checkpoint, path)
+        print(f"Model saved to {path}")
+    
+    @staticmethod
+    def load(model_path: str, device: torch.device | str = "cpu") -> "GPT":
+        checkpoint = torch.load(model_path, map_location=device)
+        config = GPTConfig(**checkpoint["config"])
+        
+        model = GPT(config)
+        model.load_state_dict(checkpoint["model"])
+        model.to(device)
+        print(f"Model loaded from {model_path}")
+        return model
