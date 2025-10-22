@@ -13,9 +13,9 @@ class Block(nn.Module):
     def __init__(self, config: GPTConfig):
         super().__init__()
         
-        self.ln1 = nn.LayerNorm(config.embd_dim)
+        self.ln1 = nn.LayerNorm(config.n_embd)
         self.attn = CausalSelfAttention(config)
-        self.ln2 = nn.LayerNorm(config.embd_dim)
+        self.ln2 = nn.LayerNorm(config.n_embd)
         self.mlp = MLP(config)
     
     def forward(self, x):
@@ -29,12 +29,12 @@ class GPT(nn.Module):
         
         self.config = config   
         self.transformer = nn.ModuleDict(dict(
-            wte = nn.Embedding(config.vocab_size, config.embd_dim), # token embedding
-            wpe = nn.Embedding(config.block_size, config.embd_dim), # positional embedding
+            wte = nn.Embedding(config.vocab_size, config.n_embd), # token embedding
+            wpe = nn.Embedding(config.block_size, config.n_embd), # positional embedding
             h = nn.ModuleList([Block(self.config) for _ in range(config.n_layer)]), # hidden layers
-            ln_f = nn.LayerNorm(config.embd_dim) # 
+            ln_f = nn.LayerNorm(config.n_embd) # 
         ))
-        self.lm_head = nn.Linear(config.embd_dim, config.vocab_size, bias=False)
+        self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
         
         # weight sharing scheme
         # -> saves params and improves model since it explicitly tells the model
@@ -42,7 +42,7 @@ class GPT(nn.Module):
         self.transformer.wte.weight = self.lm_head.weight
         
         # apply weights
-        self._std = 1.0 / math.sqrt(config.embd_dim) # javier initialization..?
+        self._std = 1.0 / math.sqrt(config.n_embd) # javier initialization..?
         self.apply(self._init_weights)
     
     def _init_weights(self, module: nn.Linear | nn.Embedding):

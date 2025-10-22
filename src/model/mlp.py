@@ -8,10 +8,10 @@ class MLP(nn.Module):
     def __init__(self, config: GPTConfig, scale: int = 4):
         super().__init__()
         
-        self.c_fc = nn.Linear(config.embd_dim, scale * config.embd_dim)
+        self.c_fc = nn.Linear(config.n_embd, scale * config.n_embd)
         self.gelu = nn.GELU() # works better in practice compared to ReLU
         
-        self.c_proj = nn.Linear(scale * config.embd_dim, config.embd_dim)
+        self.c_proj = nn.Linear(scale * config.n_embd, config.n_embd)
         self.c_proj.NANOGPT_SCALE_INIT = 1 # no idea what this does
     
     def forward(self, x):

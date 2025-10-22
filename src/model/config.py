@@ -3,12 +3,24 @@ from dataclasses import dataclass
 
 @dataclass
 class GPTConfig:
-    block_size: int = 1024 # max sequence length
-    vocab_size: int = 50304 # number of tokens in vocab
+    # --- Model dimensions ---
+    n_layer: int = 12
+    n_heads: int = 12
+    n_embd: int = 768
 
-    n_layer: int = 12 # number of layers
-    n_heads: int = 12 # number of heads
-    embd_dim: int = 768 # embedding dimension
+    # --- Sequence parameters ---
+    block_size: int = 1024
+    max_seq_len: int = 1024
 
-    n_latent: int = 64 # latent space dimension
-    n_rope: int = 32 # rotary positional encoding dim
+    # --- Tokenization ---
+    vocab_size: int = 50304
+
+    # --- MLA ---
+    nkv_latent: int = 64
+    nq_latent: int = 48
+    n_rope: int = 32
+    mscale: float = 0.34
+
+    @property
+    def rope_factor(self) -> float:
+        return self.max_seq_len / self.block_size
